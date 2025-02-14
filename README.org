@@ -5,3 +5,5 @@ fill-in-the-blank quizzes
 
 Relies on a tab-separated example sentence pairs (japanese-to-english
 translation) database downloaded from [[https://tatoeba.org/en/downloads][Tatoeba]]
+
+This project is mainly written as an exercise in learning the basics of C.
