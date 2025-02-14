@@ -1,7 +1,5 @@
 #+title: joshi
 
-* joshi
-
 Uses Tatoeba example sentences and mecab to generates Japanese particle
 fill-in-the-blank quizzes
 
