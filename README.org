@@ -1,0 +1,9 @@
+#+title: joshi
+
+* joshi
+
+Uses Tatoeba example sentences and mecab to generates Japanese particle
+fill-in-the-blank quizzes
+
+Relies on a tab-separated example sentence pairs (japanese-to-english
+translation) database downloaded from [[https://tatoeba.org/en/downloads][Tatoeba]]
