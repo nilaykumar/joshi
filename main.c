@@ -2,7 +2,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <wchar.h>
+
+int get_code_point_length(unsigned char leader_byte) {
+  if (leader_byte >> 7 == 0x0)
+    return 1;
+  if (leader_byte >> 5 == 0x6)
+    return 2;
+  if (leader_byte >> 4 == 0xe)
+    return 3;
+  if (leader_byte >> 3 == 0x1e)
+    return 4;
+  return 0;
+}
+
+bool is_valid_continuation_bytes(unsigned char *cont, int cont_length) {
+  for (int i = 0; i < cont_length; i++) {
+    if(cont[i] >> 6 != 0x2)
+      return false;
+  }
+  return true;
+}
+
+bool is_valid_utf8_char(unsigned char *code_point) {
+  int code_point_length = get_code_point_length((code_point[0]));
+  if (!code_point_length)
+    return false;
+  return is_valid_continuation_bytes(code_point + sizeof(unsigned char), code_point_length - 1);
+}
 
 // TODO if we exit failure at a point after opening the file, should we close it
 // before exiting?
@@ -21,11 +47,6 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // TODO what's the difference between the behavior of char and unsigned char
-  // here?
-  // TODO what happens when you downcast from char to unsigned char? can we math
-  // it out?
-  // TODO note that this is not a string, right? as it is not null-terminated!
   // start by reading the utf-8 bom
   unsigned char data[3];
   size_t readc = fread(&data, sizeof(unsigned char), 3, datafile);
@@ -34,32 +55,19 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // TODO check for unicode validity
-  // TODO why is there a gap in between 1 and 2 byte
   int bytec = 0;
   int extra = 0;
   int lines = 0;
-  while (lines < 10) {
+  while (lines < 3) {
     unsigned char first_byte;
     readc = fread(&first_byte, sizeof(unsigned char), 1, datafile);
     if (readc == 0)
       break;
-    if (first_byte >= 0b11111000) {
+    bytec = get_code_point_length(first_byte);
+    if (!bytec) {
       printf("Error decoding utf-8");
       return EXIT_FAILURE;
-    } else if (first_byte >= 0b11110000)
-      bytec = 4;
-    else if (first_byte >= 0b11100000)
-      bytec = 3;
-    else if (first_byte >= 0b11000000)
-      bytec = 2;
-    else if (first_byte >= 0b10000000) {
-      printf("Error decoding utf-8");
-      return EXIT_FAILURE;
-    } else
-      bytec = 1;
-    // printf("Read first character: %c / 0x%02x / %d-byte\n", first_byte,
-    // first_byte, bytec);
+    }
 
     extra = bytec - 1;
     // if it's a one-byte code point, we're done
@@ -68,25 +76,30 @@ int main(int argc, char *argv[]) {
         printf(" / ");
       else
         printf("%c", first_byte);
-      if (first_byte == '\n') {
+      if (first_byte == '\n')
         lines++;
-        printf("\n");
-      }
       continue;
     }
 
-    char *data = (char *)malloc(sizeof(char) * extra);
-    readc = fread(data, sizeof(char), extra, datafile);
+    unsigned char *data = (unsigned char *)malloc(sizeof(unsigned char) * extra);
+    readc = fread(data, sizeof(unsigned char), extra, datafile);
+    // ensure that we can read the number of bytes implied by the leader byte
     if (readc != extra) {
       printf("Error decoding utf-8");
       return EXIT_FAILURE;
     }
-    // printf("Found %d byte code point. Reading %d more characters: %c%.*s\n",
-    // bytec, extra, first_byte, extra, data);
+    // verify that the read bytes are continuation bytes
+    if (!is_valid_continuation_bytes(data, extra)) {
+      printf("Error decoding utf-8");
+      return EXIT_FAILURE;
+    }
     printf("%c%.*s", first_byte, extra, data);
+
+    free(data);
   }
 
   fclose(datafile);
 
   return EXIT_SUCCESS;
 }
+
